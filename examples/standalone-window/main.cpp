@@ -11,7 +11,7 @@
 
 using namespace duckdb;
 
-int main() {
+int main(void) {
 	DuckDB db(nullptr);
 	Connection con(db);
 

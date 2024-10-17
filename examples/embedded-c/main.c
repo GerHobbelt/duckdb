@@ -1,7 +1,7 @@
 #include "duckdb.h"
 #include <stdio.h>
 
-int main() {
+int main(void) {
 	duckdb_database db = NULL;
 	duckdb_connection con = NULL;
 	duckdb_result result;
