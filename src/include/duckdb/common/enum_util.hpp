@@ -154,6 +154,8 @@ enum class JoinType : uint8_t;
 
 enum class KeywordCategory : uint8_t;
 
+enum class LimitNodeType : uint8_t;
+
 enum class LoadType : uint8_t;
 
 enum class LogicalOperatorType : uint8_t;
@@ -242,6 +244,8 @@ enum class SetScope : uint8_t;
 
 enum class SetType : uint8_t;
 
+enum class SettingScope : uint8_t;
+
 enum class ShowType : uint8_t;
 
 enum class SimplifiedTokenType : uint8_t;
@@ -307,8 +311,6 @@ enum class WindowAggregationMode : uint32_t;
 enum class WindowBoundary : uint8_t;
 
 enum class WindowExcludeMode : uint8_t;
-
-enum class WithinCollection : uint8_t;
 
 
 template<>
@@ -495,6 +497,9 @@ template<>
 const char* EnumUtil::ToChars<KeywordCategory>(KeywordCategory value);
 
 template<>
+const char* EnumUtil::ToChars<LimitNodeType>(LimitNodeType value);
+
+template<>
 const char* EnumUtil::ToChars<LoadType>(LoadType value);
 
 template<>
@@ -627,6 +632,9 @@ template<>
 const char* EnumUtil::ToChars<SetType>(SetType value);
 
 template<>
+const char* EnumUtil::ToChars<SettingScope>(SettingScope value);
+
+template<>
 const char* EnumUtil::ToChars<ShowType>(ShowType value);
 
 template<>
@@ -724,9 +732,6 @@ const char* EnumUtil::ToChars<WindowBoundary>(WindowBoundary value);
 
 template<>
 const char* EnumUtil::ToChars<WindowExcludeMode>(WindowExcludeMode value);
-
-template<>
-const char* EnumUtil::ToChars<WithinCollection>(WithinCollection value);
 
 
 template<>
@@ -913,6 +918,9 @@ template<>
 KeywordCategory EnumUtil::FromString<KeywordCategory>(const char *value);
 
 template<>
+LimitNodeType EnumUtil::FromString<LimitNodeType>(const char *value);
+
+template<>
 LoadType EnumUtil::FromString<LoadType>(const char *value);
 
 template<>
@@ -1045,6 +1053,9 @@ template<>
 SetType EnumUtil::FromString<SetType>(const char *value);
 
 template<>
+SettingScope EnumUtil::FromString<SettingScope>(const char *value);
+
+template<>
 ShowType EnumUtil::FromString<ShowType>(const char *value);
 
 template<>
@@ -1142,9 +1153,6 @@ WindowBoundary EnumUtil::FromString<WindowBoundary>(const char *value);
 
 template<>
 WindowExcludeMode EnumUtil::FromString<WindowExcludeMode>(const char *value);
-
-template<>
-WithinCollection EnumUtil::FromString<WithinCollection>(const char *value);
 
 
 }

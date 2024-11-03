@@ -10,8 +10,7 @@ if (NOT WIN32)
     duckdb_extension_load(arrow
             LOAD_TESTS DONT_LINK
             GIT_URL https://github.com/duckdb/arrow
-            GIT_TAG 1b5b9649d28cd7f79496fb3f2e4dd7b03bf90ac5
-            APPLY_PATCHES
+            GIT_TAG 9e10240da11f61ea7fbfe3fc9988ffe672ccd40f
             )
 endif()
 
@@ -20,7 +19,7 @@ if (NOT MINGW)
     duckdb_extension_load(aws
             LOAD_TESTS
             GIT_URL https://github.com/duckdb/duckdb_aws
-            GIT_TAG af729d027e57175c5496a2d7dfef68833e6d6cd3
+            GIT_TAG f7b8729f1cce5ada5d4add70e1486de50763fb97
             )
 endif()
 
@@ -29,7 +28,7 @@ if (NOT MINGW)
     duckdb_extension_load(azure
             LOAD_TESTS
             GIT_URL https://github.com/duckdb/duckdb_azure
-            GIT_TAG 10d4cf6a0ed00ea8aecb9bf1433fdfff166e6c44
+            GIT_TAG 9e3e5b8addab5939b4ca4ac5f8997218a7228b8f
             )
 endif()
 
@@ -56,7 +55,7 @@ if (NOT MINGW)
     duckdb_extension_load(postgres_scanner
             DONT_LINK
             GIT_URL https://github.com/duckdb/postgres_scanner
-            GIT_TAG ce22bc41da1b876a8d541e013251712cae886ea8
+            GIT_TAG 883a8f1a8a487264855a5166f7df1f46ad386434
             APPLY_PATCHES
             )
 endif()
@@ -66,10 +65,9 @@ if (NOT MINGW)
     duckdb_extension_load(spatial
             DONT_LINK LOAD_TESTS
             GIT_URL https://github.com/duckdb/duckdb_spatial.git
-            GIT_TAG b9a517f344988658aef57210f3d99c0aef2450f2
+            GIT_TAG 05c4ba01c500140287bf6946fb6910122e5c2acf
             INCLUDE_DIR spatial/include
             TEST_DIR test/sql
-            APPLY_PATCHES
             )
 endif()
 
@@ -84,8 +82,7 @@ endif()
 duckdb_extension_load(sqlite_scanner
         ${STATIC_LINK_SQLITE} LOAD_TESTS
         GIT_URL https://github.com/duckdb/sqlite_scanner
-        GIT_TAG 9b558ed2e933817bff96726fec0868e7411cee65
-        APPLY_PATCHES
+        GIT_TAG c1343464ef4397665b858db9c193d33fac591b1c
         )
 
 ################# SUBSTRAIT
@@ -93,7 +90,7 @@ if (NOT WIN32)
     duckdb_extension_load(substrait
             LOAD_TESTS DONT_LINK
             GIT_URL https://github.com/duckdb/substrait
-            GIT_TAG 52ff1cab21e97053999bfeec83d1da976b94ef57
+            GIT_TAG 870bab8725d1123905296bfb1f35ce737434e0b3
             APPLY_PATCHES
             )
 endif()

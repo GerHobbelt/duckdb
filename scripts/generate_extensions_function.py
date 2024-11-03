@@ -17,6 +17,12 @@ parser.add_argument(
     action=argparse.BooleanOptionalAction,
     help='If set will validate that extension_entries.hpp is up to date, otherwise it generates the extension_functions.hpp file.',
 )
+parser.add_argument(
+    '--extension_dir',
+    action='store',
+    help="The root directory to look for the '<extension_name>/<extension>.duckdb_extension' files, relative to the location of this script",
+    default='../build/release/repository',
+)
 
 args = parser.parse_args()
 
@@ -24,21 +30,60 @@ EXTENSIONS_PATH = os.path.join("..", "build", "extension_configuration", "extens
 DUCKDB_PATH = os.path.join("..", 'build', 'release', 'duckdb')
 HEADER_PATH = os.path.join("..", "src", "include", "duckdb", "main", "extension_entries.hpp")
 
+from enum import Enum
+
+
+class CatalogType(str, Enum):
+    SCALAR = "CatalogType::SCALAR_FUNCTION_ENTRY"
+    TABLE = "CatalogType::TABLE_FUNCTION_ENTRY"
+    AGGREGATE = "CatalogType::AGGREGATE_FUNCTION_ENTRY"
+    PRAGMA = "CatalogType::PRAGMA_FUNCTION_ENTRY"
+    MACRO = "CatalogType::MACRO_ENTRY"
+    TABLE_MACRO = "CatalogType::TABLE_MACRO_ENTRY"
+
+
+def catalog_type_from_type(catalog_type: str) -> CatalogType:
+    TYPE_MAP = {
+        CatalogType.SCALAR.value: CatalogType.SCALAR,
+        CatalogType.TABLE.value: CatalogType.TABLE,
+        CatalogType.AGGREGATE.value: CatalogType.AGGREGATE,
+        CatalogType.PRAGMA.value: CatalogType.PRAGMA,
+        CatalogType.MACRO.value: CatalogType.MACRO,
+        CatalogType.TABLE_MACRO.value: CatalogType.TABLE_MACRO,
+    }
+    if catalog_type not in TYPE_MAP:
+        raise Exception(f"Unrecognized function type: '{catalog_type}'")
+    return TYPE_MAP[catalog_type]
+
+
+def catalog_type_from_string(catalog_type: str) -> CatalogType:
+    TYPE_MAP = {
+        CatalogType.SCALAR.name.lower(): CatalogType.SCALAR,
+        CatalogType.TABLE.name.lower(): CatalogType.TABLE,
+        CatalogType.AGGREGATE.name.lower(): CatalogType.AGGREGATE,
+        CatalogType.PRAGMA.name.lower(): CatalogType.PRAGMA,
+        CatalogType.MACRO.name.lower(): CatalogType.MACRO,
+        CatalogType.TABLE_MACRO.name.lower(): CatalogType.TABLE_MACRO,
+    }
+    if catalog_type not in TYPE_MAP:
+        raise Exception(f"Unrecognized function type: '{catalog_type}'")
+    return TYPE_MAP[catalog_type]
+
 
 class Function(NamedTuple):
     name: str
-    type: str
+    type: CatalogType
 
 
 class ExtensionFunction(NamedTuple):
     extension: str
     name: str
-    type: str
+    type: CatalogType
 
     def create_map(input: List[Tuple[str, str, str]]) -> Dict[Function, "ExtensionFunction"]:
         output: Dict[str, "ExtensionFunction"] = {}
         for x in input:
-            key = Function(x[0], x[2])
+            key = Function(x[0], catalog_type_from_type(x[2]))
             output[key] = ExtensionFunction(x[1], key.name, key.type)
         return output
 
@@ -78,7 +123,12 @@ class ExtensionType(NamedTuple):
 
 def check_prerequisites():
     if not os.path.isfile(EXTENSIONS_PATH) or not os.path.isfile(DUCKDB_PATH):
-        print("please run 'DISABLE_BUILTIN_EXTENSIONS=1 BUILD_ALL_EXT=1 make release'")
+        print(
+            "please run 'DISABLE_BUILTIN_EXTENSIONS=1 BUILD_ALL_EXT=1 make release', you might have to manually add DONT_LINK to all extension_configs"
+        )
+        exit(1)
+    if not os.path.isdir(args.extension_dir):
+        print(f"provided --extension_dir '{args.extension_dir}' is not a valid directory")
         exit(1)
 
 
@@ -117,7 +167,7 @@ def get_functions(load="") -> Set[Function]:
     functions = set()
     for x in results:
         function_name, function_type = [y.lower() for y in x.split(',')]
-        functions.add(Function(function_name, function_type))
+        functions.add(Function(function_name, catalog_type_from_string(function_type)))
     return functions
 
 
@@ -140,7 +190,7 @@ class ExtensionData:
         # Map of extension -> extension_path
         self.extensions: Dict[str, str] = get_extension_path_map()
 
-        self.stored_functions: Dict[str, Function] = {
+        self.stored_functions: Dict[str, List[Function]] = {
             'substrait': [
                 Function("from_substrait", "table"),
                 Function("get_substrait", "table"),
@@ -150,7 +200,7 @@ class ExtensionData:
             'arrow': [Function("scan_arrow_ipc", "table"), Function("to_arrow_ipc", "table")],
             'spatial': [],
         }
-        self.stored_settings: Dict[str, str] = {'substrait': [], 'arrow': [], 'spatial': []}
+        self.stored_settings: Dict[str, List[str]] = {'substrait': [], 'arrow': [], 'spatial': []}
 
     def set_base(self):
         self.base_functions: Set[Function] = get_functions()
@@ -178,7 +228,9 @@ class ExtensionData:
             self.add_settings(extension_name, extension_settings)
             self.add_functions(extension_name, extension_functions)
         else:
-            print(f"Missing extension {extension_name} and not found in stored_functions/stored_settings")
+            error = f"""Missing extension {extension_name} and not found in stored_functions/stored_settings
+Please double check if '{args.extension_dir}' is the right location to look for ./**/*.duckdb_extension files"""
+            print(error)
             exit(1)
 
     def add_settings(self, extension_name: str, settings_list: List[str]):
@@ -229,20 +281,20 @@ This is likely caused by building DuckDB with extensions linked in
 
     def export_functions(self) -> str:
         result = """
-	static constexpr ExtensionFunctionEntry EXTENSION_FUNCTIONS[] = {\n"""
+    static constexpr ExtensionFunctionEntry EXTENSION_FUNCTIONS[] = {\n"""
         sorted_function = sorted(self.function_map)
 
         for func in sorted_function:
             function: ExtensionFunction = self.function_map[func]
             result += "\t{"
-            result += f'"{function.name}", "{function.extension}", "{function.type}"'
+            result += f'"{function.name}", "{function.extension}", {function.type.value}'
             result += "},\n"
         result += "}; // END_OF_EXTENSION_FUNCTIONS\n"
         return result
 
     def export_settings(self) -> str:
         result = """
-	static constexpr ExtensionEntry EXTENSION_SETTINGS[] = {\n"""
+    static constexpr ExtensionEntry EXTENSION_SETTINGS[] = {\n"""
         sorted_settings = sorted(self.settings_map)
 
         for settings_name in sorted_settings:
@@ -271,7 +323,7 @@ def parse_extension_entries(file_path):
         return elements
 
     file = open(file_path, 'r')
-    pattern = re.compile("{(\".*\"(?:, )?)}[,}\n]")
+    pattern = re.compile("{(.*(?:, )?)}[,}\n]")
     file_blob = file.read()
 
     # Get the extension functions
@@ -310,15 +362,17 @@ def print_map_diff(d1, d2):
     s1 = sorted(set(d1.items()))
     s2 = sorted(set(d2.items()))
 
-    diff = str(s1 ^ s2)
-    print("Diff between maps: " + diff + "\n")
+    diff1 = str(set(s1) - set(s2))
+    diff2 = str(set(s2) - set(s1))
+    print("Diff between maps: " + diff1 + "\n")
+    print("Diff between maps: " + diff2 + "\n")
 
 
 def get_extension_path_map() -> Dict[str, str]:
     extension_paths: Dict[str, str] = {}
-    extension_dir = pathlib.Path('../build/release/extension')
-    # extension_dir = pathlib.Path('/tmp/') / '**/*.duckdb_extension'
-    for location in glob.iglob(str(extension_dir / '**/*.duckdb_extension'), recursive=True):
+    # extension_dir = pathlib.Path('../build/release/extension')
+    extension_dir = args.extension_dir
+    for location in glob.iglob(extension_dir + '/**/*.duckdb_extension', recursive=True):
         name, _ = os.path.splitext(os.path.basename(location))
         print(f"Located extension: {name} in path: '{location}'")
         extension_paths[name] = location
@@ -337,6 +391,7 @@ def write_header(data: ExtensionData):
     #pragma once
 
     #include \"duckdb/common/unordered_map.hpp\"
+    #include \"duckdb/common/enums/catalog_type.hpp\"
 
     // NOTE: this file is generated by scripts/generate_extensions_function.py. Check out the check-load-install-extensions 
     //       job in .github/workflows/LinuxRelease.yml on how to use it 
@@ -351,7 +406,7 @@ def write_header(data: ExtensionData):
     struct ExtensionFunctionEntry {
         char name[48];
         char extension[48];
-        char type[48];
+        CatalogType type;
     };
     """
 
@@ -452,19 +507,21 @@ def write_header(data: ExtensionData):
                                                                     {"azure/credential_chain", "azure"}}; // EXTENSION_SECRET_PROVIDERS
 
     static constexpr const char *AUTOLOADABLE_EXTENSIONS[] = {
-    //    "azure",
-        "autocomplete",
-        "excel",
-        "fts",
-        "httpfs",
-        // "inet", 
-        // "icu",
-        "json",
-        "parquet",
-        "sqlsmith",
-        "tpcds",
-        "tpch",
-        "visualizer"
+    "aws",
+    "azure",
+    "autocomplete",
+    "excel",
+    "fts",
+    "httpfs",
+    "inet",
+    "icu",
+    "json",
+    "parquet",
+    "sqlite_scanner",
+    "sqlsmith",
+    "postgres_scanner",
+    "tpcds",
+    "tpch"
     }; // END_OF_AUTOLOADABLE_EXTENSIONS
 
     } // namespace duckdb"""

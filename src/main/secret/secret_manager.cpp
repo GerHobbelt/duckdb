@@ -44,12 +44,9 @@ void SecretManager::Initialize(DatabaseInstance &db) {
 	// Construct default path
 	LocalFileSystem fs;
 	config.default_secret_path = fs.GetHomeDirectory();
-	vector<string> path_components = {".duckdb", "stored_secrets", ExtensionHelper::GetVersionDirectoryName()};
+	vector<string> path_components = {".duckdb", "stored_secrets"};
 	for (auto &path_ele : path_components) {
 		config.default_secret_path = fs.JoinPath(config.default_secret_path, path_ele);
-		if (!fs.DirectoryExists(config.default_secret_path)) {
-			fs.CreateDirectory(config.default_secret_path);
-		}
 	}
 	config.secret_path = config.default_secret_path;
 
@@ -158,6 +155,11 @@ unique_ptr<SecretEntry> SecretManager::RegisterSecretInternal(CatalogTransaction
 	//! Lookup which backend to store the secret in
 	auto backend = GetSecretStorage(resolved_storage);
 	if (!backend) {
+		if (!config.allow_persistent_secrets &&
+		    (persist_type == SecretPersistType::PERSISTENT || storage == LOCAL_FILE_STORAGE_NAME)) {
+			throw InvalidInputException("Persistent secrets are disabled. Restart DuckDB and enable persistent secrets "
+			                            "through 'SET allow_persistent_secrets=true'");
+		}
 		throw InvalidInputException("Secret storage '%s' not found!", resolved_storage);
 	}
 
@@ -299,7 +301,7 @@ SecretMatch SecretManager::LookupSecret(CatalogTransaction transaction, const st
 		if (!storage_ref.get().IncludeInLookups()) {
 			continue;
 		}
-		auto match = storage_ref.get().LookupSecret(path, type, &transaction);
+		auto match = storage_ref.get().LookupSecret(path, StringUtil::Lower(type), &transaction);
 		if (match.HasMatch() && match.score > best_match_score) {
 			best_match = std::move(match.secret_entry);
 			best_match_score = match.score;
@@ -503,20 +505,22 @@ void SecretManager::InitializeSecrets(CatalogTransaction transaction) {
 		// load the tmp storage
 		LoadSecretStorageInternal(make_uniq<TemporarySecretStorage>(TEMPORARY_STORAGE_NAME, *transaction.db));
 
-		// load the persistent storage if enabled
-		LoadSecretStorageInternal(
-		    make_uniq<LocalFileSecretStorage>(*this, *transaction.db, LOCAL_FILE_STORAGE_NAME, config.secret_path));
+		if (config.allow_persistent_secrets) {
+			// load the persistent storage if enabled
+			LoadSecretStorageInternal(
+			    make_uniq<LocalFileSecretStorage>(*this, *transaction.db, LOCAL_FILE_STORAGE_NAME, config.secret_path));
+		}
 
 		initialized = true;
 	}
 }
 
 void SecretManager::AutoloadExtensionForType(const string &type) {
-	ExtensionHelper::TryAutoloadFromEntry(*db, type, EXTENSION_SECRET_TYPES);
+	ExtensionHelper::TryAutoloadFromEntry(*db, StringUtil::Lower(type), EXTENSION_SECRET_TYPES);
 }
 
 void SecretManager::AutoloadExtensionForFunction(const string &type, const string &provider) {
-	ExtensionHelper::TryAutoloadFromEntry(*db, type + "/" + provider, EXTENSION_SECRET_PROVIDERS);
+	ExtensionHelper::TryAutoloadFromEntry(*db, StringUtil::Lower(type) + "/" + provider, EXTENSION_SECRET_PROVIDERS);
 }
 
 optional_ptr<SecretStorage> SecretManager::GetSecretStorage(const string &name) {
